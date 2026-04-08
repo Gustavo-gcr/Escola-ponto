@@ -28,16 +28,17 @@ st.set_page_config(page_title="Ponto IEC", page_icon="📝", layout="centered")
 NOME_ESCOLA = "Instituto Educacional Copacabana"
 SIGLA_ESCOLA = "IEC"
 CNPJ_ESCOLA = "09.238.103/0001-69"
-LOGO_ESCOLA_PATH = "logo.jpeg"  # Certifique-se de que a imagem na pasta tenha EXATAMENTE este nome
+LOGO_ESCOLA_PATH = "logo.jpeg"  
 TEXTO_RODAPE = "Bom trabalho! - IEC"
 
-LISTA_NOMES = [
+# Lista agora ordenada alfabeticamente automaticamente
+LISTA_NOMES = sorted([
     "Agda Maria Coelho Cardoso", "Valdirene Ribeiro Luz", "Priscila Vitória dos Reis",
     "Mirlene Roza da Silveira", "Amanda Cristina Barbosa Serafim", "Rita Celita Miguel",
     "Edjane Reinaldo de Lima", "Valquiria Mendes Silva", "Ana Carolina Pires",
     "Creuza Aparecida de Souza Dias", "Carla Alexandra da Silva Andrade",
     "Gabrielly Silva Ramos", "Vitória Cristina Duarte Silva"
-]
+])
 
 MESES_PT = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -55,6 +56,7 @@ TRADUCAO_FERIADOS = {
     "Tiradentes' Day": "Tiradentes",
     "Tiradentes": "Tiradentes",
     "Execução de Tiradentes": "Tiradentes",
+    "Execução de Tiradentes; Tiradentes": "Tiradentes",
     "Worker's Day": "Dia do Trabalhador",
     "Labor Day": "Dia do Trabalhador",
     "Corpus Christi": "Corpus Christi",
@@ -68,9 +70,9 @@ TRADUCAO_FERIADOS = {
     "Christmas": "Natal"
 }
 
-COR_FDS = "#E0E0E0"    # Cinza
-COR_FERIADO = "#FFFACD" # Amarelo Claro
-COR_SABADO_LETIVO = "#98FB98" # Verde Claro
+COR_FDS = "#E0E0E0"    
+COR_FERIADO = "#FFFACD" 
+COR_SABADO_LETIVO = "#98FB98" 
 
 # --- Inicialização de Estado ---
 if 'dados_mes' not in st.session_state:
@@ -81,6 +83,9 @@ if 'dados_mes' not in st.session_state:
         'cores_feriados': {},
         'nomes_feriados': {}
     }
+
+if 'alerta_substituicao' not in st.session_state:
+    st.session_state.alerta_substituicao = None
 
 def get_feriados_padrao(ano, mes):
     feriados_mes = {}
@@ -150,7 +155,6 @@ def gerar_pdf(mes, ano):
         elements.append(t_cabecalho)
         elements.append(Spacer(1, 10))
         
-        # AQUI: ColWidths ajustados para dar mais espaço ao "Mês/Ano:" (aumentou para 65)
         info_data = [
             [Paragraph("<b>Empregador:</b>", style_normal), Paragraph(NOME_ESCOLA, style_normal), Paragraph("<b>CNPJ:</b>", style_normal), Paragraph(CNPJ_ESCOLA, style_normal)],
             [Paragraph("<b>Empregado:</b>", style_normal), Paragraph(nome, style_normal), Paragraph("<b>Mês/Ano:</b>", style_normal), Paragraph(f"{mes:02d}/{ano}", style_normal)]
@@ -187,19 +191,26 @@ def gerar_pdf(mes, ano):
             ds = data_atual.weekday()
             
             is_feriado_padrao = data_atual in feriados_padrao and data_atual not in estado['feriados_removidos']
-            is_feriado_custom = data_atual in estado['feriados_customizados']
+            
+            is_feriado_custom = False
+            info_custom = None
+            if data_atual in estado['feriados_customizados']:
+                if nome in estado['feriados_customizados'][data_atual].get('funcionarios', []):
+                    is_feriado_custom = True
+                    info_custom = estado['feriados_customizados'][data_atual]
+                    
             is_sab_letivo = ds == 5 and data_atual in estado['sabados_letivos']
             
             row = [str(dia), "", "", "", "", "", ""]
             
             if is_feriado_custom:
-                info = estado['feriados_customizados'][data_atual]
-                row[1] = info['nome']
-                cor = info['cor']
+                row[1] = info_custom['nome']
+                cor = info_custom['cor']
                 table_style.add('SPAN', (1, dia), (6, dia))
                 table_style.add('BACKGROUND', (0, dia), (-1, dia), colors.HexColor(sanitize_color(cor)))
                 table_style.add('ALIGN', (1, dia), (6, dia), 'CENTER')
-                cores_usadas.add((cor, "Feriado Letivo"))
+                table_style.add('VALIGN', (1, dia), (6, dia), 'MIDDLE')
+                cores_usadas.add((cor, "Feriado/Recesso Escolar"))
                 
             elif is_feriado_padrao:
                 nome_feriado = estado['nomes_feriados'].get(data_atual, feriados_padrao[data_atual])
@@ -208,7 +219,8 @@ def gerar_pdf(mes, ano):
                 table_style.add('SPAN', (1, dia), (6, dia))
                 table_style.add('BACKGROUND', (0, dia), (-1, dia), colors.HexColor(sanitize_color(cor)))
                 table_style.add('ALIGN', (1, dia), (6, dia), 'CENTER')
-                cores_usadas.add((cor, "Feriado Letivo"))
+                table_style.add('VALIGN', (1, dia), (6, dia), 'MIDDLE')
+                cores_usadas.add((cor, "Feriado Nacional/Estadual"))
                 
             elif is_sab_letivo:
                 cor = estado['sabados_letivos'][data_atual]
@@ -216,6 +228,7 @@ def gerar_pdf(mes, ano):
                 table_style.add('SPAN', (1, dia), (6, dia))
                 table_style.add('BACKGROUND', (0, dia), (-1, dia), colors.HexColor(sanitize_color(cor)))
                 table_style.add('ALIGN', (1, dia), (6, dia), 'CENTER') 
+                table_style.add('VALIGN', (1, dia), (6, dia), 'MIDDLE')
                 cores_usadas.add((cor, "Sábado Letivo"))
                 
             elif ds >= 5: 
@@ -224,6 +237,7 @@ def gerar_pdf(mes, ano):
                 table_style.add('BACKGROUND', (0, dia), (-1, dia), colors.HexColor(COR_FDS))
                 table_style.add('TEXTCOLOR', (1, dia), (1, dia), colors.dimgrey)
                 table_style.add('ALIGN', (1, dia), (6, dia), 'CENTER')
+                table_style.add('VALIGN', (1, dia), (6, dia), 'MIDDLE')
                 cores_usadas.add((COR_FDS, "Final de Semana"))
                 
             data.append(row)
@@ -244,6 +258,18 @@ def gerar_pdf(mes, ano):
     buffer.seek(0)
     return buffer
 
+# --- Funções Auxiliares para Callbacks (Não fecham o Modal) ---
+def confirmar_substituicao(data_cust, info_nova):
+    st.session_state.dados_mes['feriados_customizados'][data_cust] = info_nova
+    st.session_state.alerta_substituicao = None
+
+def cancelar_substituicao():
+    st.session_state.alerta_substituicao = None
+
+def remover_feriado_callback(data_remover):
+    if data_remover in st.session_state.dados_mes['feriados_customizados']:
+        del st.session_state.dados_mes['feriados_customizados'][data_remover]
+
 # --- Modal (Pop-up) de Edição com Preview ---
 @st.dialog("🔧 Editor de Feriados e Dias Letivos", width="large")
 def modal_editor(ano, mes):
@@ -251,7 +277,7 @@ def modal_editor(ano, mes):
     feriados_padrao = get_feriados_padrao(ano, mes)
     num_dias = calendar.monthrange(ano, mes)[1]
     
-    col_edit, col_preview = st.columns([1.3, 1])
+    col_edit, col_preview = st.columns([1.2, 1])
     
     with col_edit:
         st.write("### 1. Feriados Padrão")
@@ -294,54 +320,124 @@ def modal_editor(ano, mes):
                 
         st.write("---")
         st.write("### 3. Feriado Customizado")
-        c1, c2, c3, c4 = st.columns([1, 2, 1, 1])
+        c1, c2, c3 = st.columns([1, 2, 1])
         dia_cust = c1.number_input("Dia", 1, num_dias, 1, key="dia_cust")
         nome_cust = c2.text_input("Nome", placeholder="Ex: Recesso", key="nome_cust")
         cor_cust = c3.color_picker("Cor", COR_FERIADO, key="cor_cust")
         
+        funcs_selecionados = []
+        with st.expander("👥 Quem vai receber esse feriado?"):
+            selecionar_todos = st.checkbox("☑️ Selecionar Todos os Funcionários", value=True)
+            st.markdown("---")
+            for func_nome in LISTA_NOMES:
+                if selecionar_todos:
+                    # Se marcado, todos ficam selecionados e bloqueados visualmente
+                    st.checkbox(func_nome, value=True, disabled=True, key=f"chk_cust_dis_{func_nome}")
+                    funcs_selecionados.append(func_nome)
+                else:
+                    # Se desmarcado, você escolhe individualmente
+                    if st.checkbox(func_nome, value=False, key=f"chk_cust_{func_nome}"):
+                        funcs_selecionados.append(func_nome)
+        
         st.markdown("<br>", unsafe_allow_html=True)
-        if c4.button("Adicionar", key="btn_add_cust"):
-            estado['feriados_customizados'][datetime.date(ano, mes, dia_cust)] = {'nome': nome_cust, 'cor': cor_cust}
-            
+        data_selecionada = datetime.date(ano, mes, dia_cust)
+        
+        if st.button("Adicionar Feriado", key="btn_add_cust", type="secondary"):
+            if not funcs_selecionados:
+                st.warning("Selecione pelo menos um funcionário para o feriado.")
+            else:
+                nova_info = {'nome': nome_cust, 'cor': cor_cust, 'funcionarios': funcs_selecionados}
+                
+                # Se o dia já tem um feriado customizado, aciona o alerta
+                if data_selecionada in estado['feriados_customizados']:
+                    st.session_state.alerta_substituicao = {'data': data_selecionada, 'info': nova_info}
+                else:
+                    estado['feriados_customizados'][data_selecionada] = nova_info
+                    st.session_state.alerta_substituicao = None
+        
+        # Pop-up de Substituição
+        if st.session_state.get('alerta_substituicao') and st.session_state.alerta_substituicao['data'] == data_selecionada:
+            st.warning(f"⚠️ Atenção: Já existe um feriado criado para o dia {data_selecionada.day}. Deseja substituí-lo?")
+            col_sim, col_nao = st.columns(2)
+            col_sim.button("✅ Sim, substituir", key="btn_sim_sub", on_click=confirmar_substituicao, args=(data_selecionada, st.session_state.alerta_substituicao['info']))
+            col_nao.button("❌ Não, cancelar", key="btn_nao_sub", on_click=cancelar_substituicao)
+
+        # Lista de Feriados Adicionados (com callback na remoção para não fechar a tela)
         if estado['feriados_customizados']:
+            st.markdown("<br>", unsafe_allow_html=True)
             for d, info in list(estado['feriados_customizados'].items()):
-                if st.button(f"🗑️ Remover '{info['nome']}' (Dia {d.day})", key=f"rem_c_{d}"):
-                    del estado['feriados_customizados'][d]
+                qnt_funcs = len(info['funcionarios'])
+                texto_btn = f"🗑️ Remover '{info['nome']}' (Dia {d.day}) - {qnt_funcs} func(s)"
+                st.button(texto_btn, key=f"rem_c_{d}", on_click=remover_feriado_callback, args=(d,))
 
     with col_preview:
-        st.write("### Preview da Folha")
-        html = """<div style='height: 400px; overflow-y: scroll; border: 1px solid #ccc; border-radius: 5px;'>
-        <table style='width: 100%; text-align: center; font-size: 13px; font-family: sans-serif; border-collapse: collapse;'>
-        <tr style='background-color: #333; color: white;'><th>Dia</th><th>Status</th></tr>"""
+        st.write("### Preview da Folha (Calendário)")
         
-        for dia in range(1, num_dias + 1):
-            d_atual = datetime.date(ano, mes, dia)
-            ds = d_atual.weekday()
-            cor = "white"
-            texto = "Dia Útil"
-            
-            if d_atual in estado['feriados_customizados']:
-                cor = estado['feriados_customizados'][d_atual]['cor']
-                texto = estado['feriados_customizados'][d_atual]['nome']
-            elif d_atual in feriados_padrao and d_atual not in estado['feriados_removidos']:
-                cor = estado['cores_feriados'].get(d_atual, COR_FERIADO)
-                texto = estado['nomes_feriados'].get(d_atual, feriados_padrao[d_atual])
-            elif ds == 5 and d_atual in estado['sabados_letivos']:
-                cor = estado['sabados_letivos'][d_atual]
-                texto = "Sábado Letivo"
-            elif ds >= 5:
-                cor = COR_FDS
-                texto = "Sábado" if ds == 5 else "Domingo"
+        cal = calendar.Calendar(firstweekday=6)
+        month_days = cal.monthdatescalendar(ano, mes)
+        
+        html = f"""
+        <div style='background-color: #ffffff; color: #000000; padding: 10px; border-radius: 8px;'>
+        <h4 style='text-align: center; margin-top: 0; margin-bottom: 10px; color: #333;'>{MESES_PT[mes-1]} {ano}</h4>
+        <table style='width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 11px;'>
+        <tr>
+            <th style='background-color: #333; color: white; padding: 4px; text-align: center; border: 1px solid #444;'>Dom</th>
+            <th style='background-color: #333; color: white; padding: 4px; text-align: center; border: 1px solid #444;'>Seg</th>
+            <th style='background-color: #333; color: white; padding: 4px; text-align: center; border: 1px solid #444;'>Ter</th>
+            <th style='background-color: #333; color: white; padding: 4px; text-align: center; border: 1px solid #444;'>Qua</th>
+            <th style='background-color: #333; color: white; padding: 4px; text-align: center; border: 1px solid #444;'>Qui</th>
+            <th style='background-color: #333; color: white; padding: 4px; text-align: center; border: 1px solid #444;'>Sex</th>
+            <th style='background-color: #333; color: white; padding: 4px; text-align: center; border: 1px solid #444;'>Sáb</th>
+        </tr>
+        """
+        
+        for week in month_days:
+            html += "<tr>"
+            for d_atual in week:
+                if d_atual.month != mes:
+                    html += "<td style='border: 1px solid #ccc; width: 14.28%; height: 50px; background-color: #f0f0f0;'></td>"
+                    continue
+                    
+                ds = d_atual.weekday()
+                eventos_html = ""
+                bg_color = "transparent"
                 
-            html += f"<tr style='background-color: {cor}; color: #222; font-weight: 500; border-bottom: 1px solid #ddd; height: 28px;'><td>{dia}</td><td>{texto}</td></tr>"
+                if d_atual in estado['feriados_customizados']:
+                    cor = estado['feriados_customizados'][d_atual]['cor']
+                    texto = estado['feriados_customizados'][d_atual]['nome']
+                    eventos_html += f"<div style='background-color: {cor}; font-size: 9px; border-radius: 3px; padding: 2px; color: #222; margin-bottom: 2px; text-align: center; font-weight: bold; border: 1px dashed #555;' title='Aplicado a {len(estado['feriados_customizados'][d_atual]['funcionarios'])} funcionários'>*{texto}</div>"
+                    
+                if d_atual in feriados_padrao and d_atual not in estado['feriados_removidos']:
+                    cor = estado['cores_feriados'].get(d_atual, COR_FERIADO)
+                    texto = estado['nomes_feriados'].get(d_atual, feriados_padrao[d_atual])
+                    eventos_html += f"<div style='background-color: {cor}; font-size: 9px; border-radius: 3px; padding: 2px; color: #222; margin-bottom: 2px; text-align: center; font-weight: bold;'>{texto}</div>"
+                    
+                if ds == 5 and d_atual in estado['sabados_letivos']:
+                    cor = estado['sabados_letivos'][d_atual]
+                    eventos_html += f"<div style='background-color: {cor}; font-size: 9px; border-radius: 3px; padding: 2px; color: #222; margin-bottom: 2px; text-align: center; font-weight: bold;'>Sáb. Letivo</div>"
+                    
+                if ds >= 5 and bg_color == "transparent":
+                    bg_color = COR_FDS
+                    
+                html += f"<td style='border: 1px solid #ccc; width: 14.28%; height: 55px; vertical-align: top; padding: 2px; background-color: {bg_color};'><div style='font-weight: bold; margin-bottom: 2px; text-align: left; color: #333;'>{d_atual.day}</div>{eventos_html}</td>"
+                
+            html += "</tr>"
             
-        html += "</table></div>"
+        html += """
+        </table>
+        <div style='font-size: 10px; color: #555; margin-top: 5px; text-align: right;'>
+            <i>* Feriados customizados marcados assim dependem de quem foi selecionado.</i>
+        </div>
+        </div>
+        """
         st.markdown(html, unsafe_allow_html=True)
         
-    st.markdown("---")
-    # Botão para salvar e fechar o modal propositalmente recarregando a página principal
-    if st.button("💾 Salvar e Fechar Edições", type="primary", use_container_width=True):
-        st.rerun()
+    st.markdown("<br><hr>", unsafe_allow_html=True)
+    
+    # Novo design centralizado e elegante para o botão de fechar
+    _, col_btn_fechar, _ = st.columns([1, 2, 1])
+    if col_btn_fechar.button("✅ Concluir e Fechar Edições", type="primary", use_container_width=True):
+        st.rerun() # O rerun finaliza o pop-up propositalmente
 
 # --- Interface Principal ---
 st.title(f"📝 Gerador de Folha de Ponto - {SIGLA_ESCOLA}")
@@ -363,14 +459,13 @@ with col_btn1:
         modal_editor(ano_selecionado, mes_num)
 
 with col_btn2:
-    if st.button("📄 GERAR FOLHAS EM PDF", type="primary", use_container_width=True):
-        with st.spinner("Construindo o documento..."):
-            pdf_bytes = gerar_pdf(mes_num, ano_selecionado)
-            if pdf_bytes:
-                st.download_button(
-                    label="⬇️ Baixar PDF Pronto",
-                    data=pdf_bytes,
-                    file_name=f"Folha_Ponto_{mes_str}_{ano_selecionado}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
+    pdf_bytes = gerar_pdf(mes_num, ano_selecionado)
+    if pdf_bytes:
+        st.download_button(
+            label="📄 BAIXAR FOLHAS EM PDF",
+            data=pdf_bytes,
+            file_name=f"Folha_Ponto_{mes_str}_{ano_selecionado}.pdf",
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
