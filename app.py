@@ -5,6 +5,9 @@ import io
 import re
 import os
 
+# 1º PASSO: A CONFIGURAÇÃO DA PÁGINA DEVE VIR AQUI NO TOPO!
+st.set_page_config(page_title="Ponto IEC", page_icon="📝", layout="centered")
+
 # --- Tratamento de Erros e Imports ---
 try:
     import holidays
@@ -18,6 +21,7 @@ try:
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.enums import TA_CENTER, TA_LEFT
 except ImportError:
+    # Se não tiver o reportlab, agora o erro vai aparecer sem quebrar a página!
     st.error("Instale o reportlab: pip install reportlab")
     A4 = None
 
@@ -30,15 +34,6 @@ SIGLA_ESCOLA = "IEC"
 CNPJ_ESCOLA = "09.238.103/0001-69"
 LOGO_ESCOLA_PATH = "logo.jpeg"  
 TEXTO_RODAPE = "Bom trabalho! - IEC"
-
-# Lista agora ordenada alfabeticamente automaticamente
-LISTA_NOMES = sorted([
-    "Agda Maria Coelho Cardoso", "Valdirene Ribeiro Luz", "Priscila Vitória dos Reis",
-    "Mirlene Roza da Silveira", "Amanda Cristina Barbosa Serafim", "Rita Celita Miguel",
-    "Edjane Reinaldo de Lima", "Valquiria Mendes Silva", "Ana Carolina Pires",
-    "Creuza Aparecida de Souza Dias", "Carla Alexandra da Silva Andrade",
-    "Gabrielly Silva Ramos", "Vitória Cristina Duarte Silva"
-])
 
 MESES_PT = [
     "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -86,6 +81,16 @@ if 'dados_mes' not in st.session_state:
 
 if 'alerta_substituicao' not in st.session_state:
     st.session_state.alerta_substituicao = None
+
+# Lista de Nomes agora gerenciada pelo session_state
+if 'lista_nomes' not in st.session_state:
+    st.session_state.lista_nomes = sorted([
+        "Agda Maria Coelho Cardoso", "Valdirene Ribeiro Luz", "Priscila Vitória dos Reis",
+        "Mirlene Roza da Silveira", "Amanda Cristina Barbosa Serafim", "Rita Celita Miguel",
+        "Edjane Reinaldo de Lima", "Valquiria Mendes Silva", "Ana Carolina Pires",
+        "Creuza Aparecida de Souza Dias", "Carla Alexandra da Silva Andrade",
+        "Gabrielly Silva Ramos", "Vitória Cristina Duarte Silva"
+    ])
 
 def get_feriados_padrao(ano, mes):
     feriados_mes = {}
@@ -137,7 +142,7 @@ def gerar_pdf(mes, ano):
     feriados_padrao = get_feriados_padrao(ano, mes)
     estado = st.session_state.dados_mes
 
-    for nome in LISTA_NOMES:
+    for nome in st.session_state.lista_nomes:
         if os.path.exists(LOGO_ESCOLA_PATH):
             logo_img = Image(LOGO_ESCOLA_PATH, width=50, height=50)
         else:
@@ -270,6 +275,17 @@ def remover_feriado_callback(data_remover):
     if data_remover in st.session_state.dados_mes['feriados_customizados']:
         del st.session_state.dados_mes['feriados_customizados'][data_remover]
 
+def adicionar_funcionario_callback():
+    novo_nome = st.session_state.get('input_novo_nome', '').strip()
+    if novo_nome and novo_nome not in st.session_state.lista_nomes:
+        st.session_state.lista_nomes.append(novo_nome)
+        st.session_state.lista_nomes.sort()
+        st.session_state.input_novo_nome = "" # Limpa o campo
+
+def remover_funcionario_callback(nome):
+    if nome in st.session_state.lista_nomes:
+        st.session_state.lista_nomes.remove(nome)
+
 # --- Modal (Pop-up) de Edição com Preview ---
 @st.dialog("🔧 Editor de Feriados e Dias Letivos", width="large")
 def modal_editor(ano, mes):
@@ -329,7 +345,7 @@ def modal_editor(ano, mes):
         with st.expander("👥 Quem vai receber esse feriado?"):
             selecionar_todos = st.checkbox("☑️ Selecionar Todos os Funcionários", value=True)
             st.markdown("---")
-            for func_nome in LISTA_NOMES:
+            for func_nome in st.session_state.lista_nomes:
                 if selecionar_todos:
                     # Se marcado, todos ficam selecionados e bloqueados visualmente
                     st.checkbox(func_nome, value=True, disabled=True, key=f"chk_cust_dis_{func_nome}")
@@ -369,6 +385,21 @@ def modal_editor(ano, mes):
                 qnt_funcs = len(info['funcionarios'])
                 texto_btn = f"🗑️ Remover '{info['nome']}' (Dia {d.day}) - {qnt_funcs} func(s)"
                 st.button(texto_btn, key=f"rem_c_{d}", on_click=remover_feriado_callback, args=(d,))
+
+        st.write("---")
+        st.write("### 4. Gerenciar Funcionários")
+        with st.expander("👤 Adicionar ou Remover da Lista"):
+            col_in, col_btn_add = st.columns([3, 1])
+            col_in.text_input("Novo funcionário", key="input_novo_nome", placeholder="Digite o nome completo...", label_visibility="collapsed")
+            col_btn_add.button("➕ Add", on_click=adicionar_funcionario_callback, use_container_width=True)
+            
+            st.markdown("<hr style='margin: 10px 0;'>", unsafe_allow_html=True)
+            st.write("**Lista Atual:**")
+            
+            for func_nome in st.session_state.lista_nomes:
+                c_nome, c_rem = st.columns([4, 1])
+                c_nome.markdown(f"<div style='margin-top: 5px; font-size: 14px;'>{func_nome}</div>", unsafe_allow_html=True)
+                c_rem.button("🗑️", key=f"rem_func_{func_nome}", on_click=remover_funcionario_callback, args=(func_nome,), use_container_width=True)
 
     with col_preview:
         st.write("### Preview da Folha (Calendário)")
